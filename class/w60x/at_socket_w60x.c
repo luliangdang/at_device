@@ -1,21 +1,7 @@
 /*
- * File      : at_socket_w60x.c
- * This file is part of RT-Thread RTOS
- * COPYRIGHT (C) 2006 - 2018, RT-Thread Development Team
+ * Copyright (c) 2006-2023, RT-Thread Development Team
  *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along
- *  with this program; if not, write to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Change Logs:
  * Date           Author       Notes
@@ -58,7 +44,9 @@ static int w60x_socket_close(struct at_socket *socket)
     at_response_t resp = RT_NULL;
     int device_socket = (int) socket->user_data;
     struct at_device *device = (struct at_device *) socket->device;
+    int wsk = w60x_socket_fd[device_socket];
 
+    w60x_socket_fd[device_socket] = -1;
     resp = at_create_resp(64, 1, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
@@ -68,8 +56,7 @@ static int w60x_socket_close(struct at_socket *socket)
 
     at_obj_set_end_sign(device->client, '\r');
 
-    result = at_obj_exec_cmd(device->client, resp, "AT+SKCLS=%d", w60x_socket_fd[device_socket]);
-    w60x_socket_fd[device_socket] = -1;
+    result = at_obj_exec_cmd(device->client, resp, "AT+SKCLS=%d", wsk);
 
     if (resp)
     {
@@ -119,6 +106,7 @@ static int w60x_socket_connect(struct at_socket *socket, char *ip, int32_t port,
         result = -RT_ERROR;
         goto __exit;
     }
+    rt_thread_mdelay(20);
 
     switch (type)
     {
@@ -148,6 +136,7 @@ static int w60x_socket_connect(struct at_socket *socket, char *ip, int32_t port,
     if ((result != RT_EOK) || !rt_strstr(at_resp_get_line(resp, 1), "+OK="))
     {
         LOG_D("%s device socket connect failed.", device->name);
+        result = -1;
         goto __exit;
     }
 
@@ -215,6 +204,7 @@ static int w60x_socket_send(struct at_socket *socket, const char *buff, size_t b
             cur_pkt_size = W60X_MODULE_SEND_MAX_SIZE;
         }
 
+        rt_thread_mdelay(5);
         /* send the "AT+SKSND" commands */
         if (at_obj_exec_cmd(device->client, resp, "AT+SKSND=%d,%d", w60x_socket_fd[device_socket], cur_pkt_size) < 0)
         {
@@ -267,7 +257,7 @@ static int w60x_domain_resolve(const char *name, char ip[16])
 {
 #define RESOLVE_RETRY        5
 
-    int i, result = RT_EOK;
+    int i, result = -RT_ERROR;
     char recv_ip[16] = { 0 };
     at_response_t resp = RT_NULL;
     struct at_device *device = RT_NULL;
@@ -296,7 +286,6 @@ static int w60x_domain_resolve(const char *name, char ip[16])
     {
         if (at_obj_exec_cmd(device->client, resp, "AT+SKGHBN=%s", name) < 0)
         {
-            result = -RT_ERROR;
             goto __exit;
         }
 
@@ -309,7 +298,7 @@ static int w60x_domain_resolve(const char *name, char ip[16])
             continue;
         }
 
-        sscanf(pos, "+OK=\"%[^\"]\"", recv_ip);
+        rt_sscanf(pos, "+OK=\"%[^\"]\"", recv_ip);
 
         if (rt_strlen(recv_ip) < 8)
         {
@@ -321,6 +310,7 @@ static int w60x_domain_resolve(const char *name, char ip[16])
         {
             rt_strncpy(ip, recv_ip, 15);
             ip[15] = '\0';
+            result = RT_EOK;
             break;
         }
     }
@@ -356,11 +346,14 @@ static const struct at_socket_ops w60x_socket_ops =
     w60x_socket_send,
     w60x_domain_resolve,
     w60x_socket_set_event_cb,
+#if defined(AT_SW_VERSION_NUM) && AT_SW_VERSION_NUM > 0x10300
+    RT_NULL,
+#endif
 };
 
 static void urc_recv_func(struct at_client *client, const char *data, rt_size_t size)
 {
-    int device_socket = 0;
+    int device_socket = -1;
     rt_int32_t timeout = 0;
     rt_size_t bfsz = 0, temp_size = 0;
     char *recv_buf = RT_NULL, temp[8] = {0};
@@ -371,6 +364,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     rt_int32_t recv_port = 0;
     rt_uint8_t i;
     char *pos;
+    int wsk;
 
     RT_ASSERT(data && size);
 
@@ -383,11 +377,11 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
 
     /* get the at deveice socket and receive buffer size by receive data */
     pos = rt_strstr(data, "+SKTRPT=");
-    sscanf(pos, "+SKTRPT=%d,%d,%[^,],%d", &device_socket, (int *) &bfsz, recv_ip, &recv_port);
+    rt_sscanf(pos, "+SKTRPT=%d,%d,%[^,],%d", &wsk, (int *) &bfsz, recv_ip, &recv_port);
 
     for (i = 0; i < AT_DEVICE_W60X_SOCKETS_NUM; i++)
     {
-        if (device_socket == w60x_socket_fd[i])
+        if (wsk == w60x_socket_fd[i])
         {
             device_socket = i;
             break;
@@ -419,6 +413,9 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
         }
         return;
     }
+
+    /* "\n\r\n" left in SERIAL */
+    at_client_obj_recv(client, temp, 3, timeout);
 
     /* sync receive data */
     if (at_client_obj_recv(client, recv_buf, bfsz, timeout) != bfsz)

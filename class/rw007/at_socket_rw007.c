@@ -1,21 +1,7 @@
 /*
- * File      : at_socket_rw007.c
- * This file is part of RT-Thread RTOS
- * COPYRIGHT (C) 2006 - 2018, RT-Thread Development Team
+ * Copyright (c) 2006-2023, RT-Thread Development Team
  *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along
- *  with this program; if not, write to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Change Logs:
  * Date           Author       Notes
@@ -392,6 +378,9 @@ static const struct at_socket_ops rw007_socket_ops =
     rw007_socket_send,
     rw007_domain_resolve,
     rw007_socket_set_event_cb,
+#if defined(AT_SW_VERSION_NUM) && AT_SW_VERSION_NUM > 0x10300
+    RT_NULL,
+#endif
 };
 
 static void urc_send_func(struct at_client *client, const char *data, rt_size_t size)
@@ -428,7 +417,7 @@ static void urc_send_bfsz_func(struct at_client *client, const char *data, rt_si
 
     RT_ASSERT(data && size);
 
-    sscanf(data, "Recv %d bytes", &cur_send_bfsz);
+    rt_sscanf(data, "Recv %d bytes", &cur_send_bfsz);
 }
 
 static void urc_close_func(struct at_client *client, const char *data, rt_size_t size)
@@ -447,7 +436,7 @@ static void urc_close_func(struct at_client *client, const char *data, rt_size_t
         return;
     }
 
-    sscanf(data, "%d,CLOSED", &device_socket);
+    rt_sscanf(data, "%d,CLOSED", &device_socket);
     /* get at socket object by device socket descriptor */
     socket = &(device->sockets[device_socket]);
 
@@ -478,7 +467,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     }
 
     /* get the current socket and receive buffer size by receive data */
-    sscanf(data, "+IPD,%d,%d:", &device_socket, (int *) &bfsz);
+    rt_sscanf(data, "+IPD,%d,%d:", &device_socket, (int *) &bfsz);
     /* set receive timeout by receive buffer length, not less than 10 ms */
     timeout = bfsz > 10 ? bfsz : 10;
 

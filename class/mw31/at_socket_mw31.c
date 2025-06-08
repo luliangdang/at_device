@@ -1,21 +1,7 @@
 /*
- * File      : at_socket_mw31.c
- * This file is part of RT-Thread RTOS
- * COPYRIGHT (C) 2006 - 2018, RT-Thread Development Team
+ * Copyright (c) 2006-2023, RT-Thread Development Team
  *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along
- *  with this program; if not, write to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Change Logs:
  * Date           Author       Notes
@@ -235,7 +221,7 @@ static int mw31_socket_send(struct at_socket *socket, const char *buff, size_t b
             cur_pkt_size = MW31_MODULE_SEND_MAX_SIZE;
         }
 
-        sprintf(send_buf, "AT+CIPSEND=%d,%d", device_socket, cur_pkt_size);
+        rt_sprintf(send_buf, "AT+CIPSEND=%d,%d", device_socket, cur_pkt_size);
         /* send the "AT+CIPSEND" commands to AT server than receive the '>' response on the first line */
         at_client_obj_send(device->client, send_buf, strlen(send_buf));
 
@@ -366,6 +352,9 @@ static const struct at_socket_ops mw31_socket_ops =
     mw31_socket_send,
     mw31_domain_resolve,
     mw31_socket_set_event_cb,
+#if defined(AT_SW_VERSION_NUM) && AT_SW_VERSION_NUM > 0x10300
+    RT_NULL,
+#endif
 };
 
 static void urc_recv_func(struct at_client *client, const char *data, rt_size_t size)
@@ -390,14 +379,18 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
 
     at_client_obj_recv(client, temp, 2, 1000);
     /* get the at deveice socket and receive buffer size by receive data */
-    sscanf(temp, "%d,", &device_socket);
+    rt_sscanf(temp, "%d,", &device_socket);
     temp[0] = 0;
     temp[1] = 0;
-    for (i = 0; i < 6 && temp[i - 1] != ','; i++)
+    for (i = 0; i < 6; i++)
     {
+        if (i > 0 && temp[i - 1] == ',')
+        {
+            break;
+        }
         at_client_obj_recv(client, &temp[i], 1, 1000);
     }
-    sscanf(temp, "%ld,", &bfsz);
+    rt_sscanf(temp, "%ld,", &bfsz);
 
     LOG_D("socket:%d, size:%ld\n", device_socket, bfsz);
     /* set receive timeout by receive buffer length, not less than 10 ms */

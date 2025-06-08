@@ -1,21 +1,7 @@
 /*
- * File      : at_device_w60x.c
- * This file is part of RT-Thread RTOS
- * COPYRIGHT (C) 2006 - 2018, RT-Thread Development Team
+ * Copyright (c) 2006-2023, RT-Thread Development Team
  *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along
- *  with this program; if not, write to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Change Logs:
  * Date           Author       Notes
@@ -62,15 +48,14 @@ static void w60x_get_netdev_info(struct rt_work *work, void *work_data)
     rt_uint32_t mac_addr[6] = {0};
     rt_uint32_t num = 0;
     rt_int32_t dhcp_stat = 0;
-    struct rt_delayed_work *delay_work = (struct rt_delayed_work *)work;
     struct at_device *device = (struct at_device *)work_data;
     struct netdev *netdev = device->netdev;
     struct at_client *client = device->client;
     char *pos;
 
-    if (delay_work)
+    if (work != RT_NULL)
     {
-        rt_free(delay_work);
+        rt_free(work);
     }
 
     resp = at_create_resp(512, 1, rt_tick_from_millisecond(3000));
@@ -95,7 +80,7 @@ static void w60x_get_netdev_info(struct rt_work *work, void *work_data)
         goto __exit;
     }
 
-    sscanf(pos, resp_expr1, mac);
+    rt_sscanf(pos, resp_expr1, mac);
 
     /* send addr info query commond "AT+CIPSTA?" and wait response */
     if (at_obj_exec_cmd(client, resp, "AT+LKSTT") < 0)
@@ -111,7 +96,7 @@ static void w60x_get_netdev_info(struct rt_work *work, void *work_data)
         goto __exit;
     }
 
-    sscanf(pos, resp_expr2, &link_status, ip, netmask, gateway, dns_server1, dns_server2);
+    rt_sscanf(pos, resp_expr2, &link_status, ip, netmask, gateway, dns_server1, dns_server2);
 
     /* set netdev info */
     inet_aton(gateway, &ip_addr);
@@ -120,7 +105,7 @@ static void w60x_get_netdev_info(struct rt_work *work, void *work_data)
     netdev_low_level_set_netmask(netdev, &ip_addr);
     inet_aton(ip, &ip_addr);
     netdev_low_level_set_ipaddr(netdev, &ip_addr);
-    sscanf(mac, "%02x%02x%02x%02x%02x%02x",
+    rt_sscanf(mac, "%02x%02x%02x%02x%02x%02x",
             &mac_addr[0], &mac_addr[1], &mac_addr[2], &mac_addr[3], &mac_addr[4], &mac_addr[5]);
     for (num = 0; num < netdev->hwaddr_len; num++)
     {
@@ -154,7 +139,7 @@ static void w60x_get_netdev_info(struct rt_work *work, void *work_data)
     }
 
     pos = rt_strstr(resp->buf, "+OK=");
- 
+
     /* parse response data, get the DHCP status */
     if (!pos)
     {
@@ -162,7 +147,7 @@ static void w60x_get_netdev_info(struct rt_work *work, void *work_data)
         goto __exit;
     }
 
-    sscanf(pos, resp_expr3, &dhcp_stat, ip, netmask, gateway, dns_server1);
+    rt_sscanf(pos, resp_expr3, &dhcp_stat, ip, netmask, gateway, dns_server1);
 
     /* 0 - DHCP, 1 - static ip */
     netdev_low_level_set_dhcp_status(netdev, dhcp_stat ? RT_FALSE : RT_TRUE);
@@ -442,7 +427,11 @@ __exit:
 
 #ifdef NETDEV_USING_PING
 static int w60x_netdev_ping(struct netdev *netdev, const char *host,
-                size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp)
+            size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp
+#if RT_VER_NUM >= 0x50100
+            , rt_bool_t is_bind
+#endif
+            )
 {
 #define W60X_IP_SIZE         16
 
@@ -451,6 +440,10 @@ static int w60x_netdev_ping(struct netdev *netdev, const char *host,
     struct at_device *device = RT_NULL;
     char ip_addr[W60X_IP_SIZE] = {0};
     char *pos;
+
+#if RT_VER_NUM >= 0x50100
+    RT_UNUSED(is_bind);
+#endif
 
     RT_ASSERT(netdev);
     RT_ASSERT(host);
@@ -489,7 +482,7 @@ static int w60x_netdev_ping(struct netdev *netdev, const char *host,
         goto __exit;
     }
 
-    sscanf(pos, "+OK=\"%[^\"]\"", ip_addr);
+    rt_sscanf(pos, "+OK=\"%[^\"]\"", ip_addr);
 
     inet_aton(ip_addr, &(ping_resp->ip_addr));
     ping_resp->data_len = data_len;
@@ -511,7 +504,7 @@ void w60x_netdev_netstat(struct netdev *netdev)
 {
     at_response_t resp = RT_NULL;
     struct at_device *device = RT_NULL;
- 
+
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
@@ -569,6 +562,12 @@ static struct netdev *w60x_netdev_add(const char *netdev_name)
 
     RT_ASSERT(netdev_name);
 
+    netdev = netdev_get_by_name(netdev_name);
+    if (netdev != RT_NULL)
+    {
+        return (netdev);
+    }
+
     netdev = (struct netdev *) rt_calloc(1, sizeof(struct netdev));
     if (netdev == RT_NULL)
     {
@@ -605,15 +604,15 @@ static struct netdev *w60x_netdev_add(const char *netdev_name)
 
 static void w60x_netdev_start_delay_work(struct at_device *device)
 {
-    struct rt_delayed_work *net_work = RT_NULL;
-    net_work = (struct rt_delayed_work *)rt_calloc(1, sizeof(struct rt_delayed_work));
+    struct rt_work *net_work = RT_NULL;
+    net_work = (struct rt_work *)rt_calloc(1, sizeof(struct rt_work));
     if (net_work == RT_NULL)
     {
         return;
     }
 
-    rt_delayed_work_init(net_work, w60x_get_netdev_info, (void *)device);
-    rt_work_submit(&(net_work->work), RT_TICK_PER_SECOND);
+    rt_work_init(net_work, w60x_get_netdev_info, (void *)device);
+    rt_work_submit(net_work, RT_TICK_PER_SECOND);
 }
 
 static void w60x_init_thread_entry(void *parameter)
@@ -736,58 +735,16 @@ static int w60x_net_init(struct at_device *device)
     return RT_EOK;
 }
 
-static void urc_func(struct at_client *client, const char *data, rt_size_t size)
-{
-    struct at_device *device = RT_NULL;
-    char *client_name = client->device->parent.name;
-
-    RT_ASSERT(client && data && size);
-
-    device = at_device_get_by_name(AT_DEVICE_NAMETYPE_CLIENT, client_name);
-    if (device == RT_NULL)
-    {
-        LOG_E("get device(%s) failed.", client_name);
-        return;
-    }
-
-    if (w60x_is_join_start && !rt_strncmp(data, "+OK=", rt_strlen("+OK=")))
-    {
-        w60x_is_join_start = RT_FALSE;
-    
-        LOG_I("%s device wifi is connected.", device->name);
-
-        if (device->is_init)
-        {
-            netdev_low_level_set_link_status(device->netdev, RT_TRUE);
-
-            w60x_netdev_start_delay_work(device);
-        }
-    }
-    else if (w60x_is_join_start && !rt_strncmp(data, "+ERR=", rt_strlen("+ERR=")))
-    {
-        w60x_is_join_start = RT_FALSE;
-
-        LOG_I("%s device wifi is disconnect.", device->name);
-
-        if (device->is_init)
-        {
-            netdev_low_level_set_link_status(device->netdev, RT_FALSE);
-        }
-    }
-}
-
-static const struct at_urc urc_table[] =
-{
-    {"+OK=",  "\r\n", urc_func},
-    {"+ERR=", "\r\n", urc_func},
-};
-
 static int w60x_init(struct at_device *device)
 {
     struct at_device_w60x *w60x = (struct at_device_w60x *) device->user_data;
 
     /* initialize AT client */
+#if RT_VER_NUM >= 0x50100
+    at_client_init(w60x->client_name, w60x->recv_line_num, w60x->recv_line_num);
+#else
     at_client_init(w60x->client_name, w60x->recv_line_num);
+#endif
 
     device->client = at_client_get(w60x->client_name);
     if (device->client == RT_NULL)
@@ -795,9 +752,6 @@ static int w60x_init(struct at_device *device)
         LOG_E("get AT client(%s) failed.", w60x->client_name);
         return -RT_ERROR;
     }
-
-    /* register URC data execution function  */
-    at_obj_set_urc_table(device->client, urc_table, sizeof(urc_table) / sizeof(urc_table[0]));
 
 #ifdef AT_USING_SOCKET
     w60x_socket_init(device);

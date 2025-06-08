@@ -1,21 +1,7 @@
 /*
- * File      : at_socket_sim800c.c
- * This file is part of RT-Thread RTOS
- * COPYRIGHT (C) 2006 - 2018, RT-Thread Development Team
+ * Copyright (c) 2006-2023, RT-Thread Development Team
  *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along
- *  with this program; if not, write to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Change Logs:
  * Date           Author       Notes
@@ -86,11 +72,11 @@ static int sim800c_socket_close(struct at_socket *socket)
     int result = RT_EOK;
     int device_socket = (int) socket->user_data;
     struct at_device *device = (struct at_device *) socket->device;
-    
+
     /* clear socket close event */
     event = SET_EVENT(device_socket, SIM800C_EVNET_CLOSE_OK);
     sim800c_socket_event_recv(device, event, 0, RT_EVENT_FLAG_OR);
-    
+
     if (at_obj_exec_cmd(device->client, NULL, "AT+CIPCLOSE=%d", device_socket) < 0)
     {
         result = -RT_ERROR;
@@ -104,7 +90,7 @@ static int sim800c_socket_close(struct at_socket *socket)
         goto __exit;
     }
 
-__exit:    
+__exit:
     return result;
 }
 
@@ -453,7 +439,7 @@ static void urc_connect_func(struct at_client *client, const char *data, rt_size
     }
 
     /* get the current socket by receive data */
-    sscanf(data, "%d,%*s", &device_socket);
+    rt_sscanf(data, "%d,%*s", &device_socket);
 
     if (strstr(data, "CONNECT OK"))
     {
@@ -481,7 +467,7 @@ static void urc_send_func(struct at_client *client, const char *data, rt_size_t 
     }
 
     /* get the current socket by receive data */
-    sscanf(data, "%d,%*s", &device_socket);
+    rt_sscanf(data, "%d,%*s", &device_socket);
 
     if (rt_strstr(data, "SEND OK"))
     {
@@ -509,7 +495,7 @@ static void urc_close_func(struct at_client *client, const char *data, rt_size_t
     }
 
     /* get the current socket by receive data */
-    sscanf(data, "%d,%*s", &device_socket);
+    rt_sscanf(data, "%d,%*s", &device_socket);
 
     if (rt_strstr(data, "CLOSE OK"))
     {
@@ -543,7 +529,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     RT_ASSERT(data && size);
 
     /* get the current socket and receive buffer size by receive data */
-    sscanf(data, "+RECEIVE,%d,%d:", &device_socket, (int *) &bfsz);
+    rt_sscanf(data, "+RECEIVE,%d,%d:", &device_socket, (int *) &bfsz);
     /* set receive timeout by receive buffer length, not less than 10 ms */
     timeout = bfsz > 10 ? bfsz : 10;
 
@@ -616,6 +602,9 @@ static const struct at_socket_ops sim800c_socket_ops =
     sim800c_socket_send,
     sim800c_domain_resolve,
     sim800c_socket_set_event_cb,
+#if defined(AT_SW_VERSION_NUM) && AT_SW_VERSION_NUM > 0x10300
+    RT_NULL,
+#endif
 };
 
 int sim800c_socket_init(struct at_device *device)

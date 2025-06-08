@@ -1,21 +1,7 @@
 /*
- * File      : at_socket_sim76xx.c
- * This file is part of RT-Thread RTOS
- * COPYRIGHT (C) 2006 - 2018, RT-Thread Development Team
+ * Copyright (c) 2006-2023, RT-Thread Development Team
  *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along
- *  with this program; if not, write to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Change Logs:
  * Date           Author       Notes
@@ -216,7 +202,7 @@ static int sim76xx_socket_connect(struct at_socket *socket, char *ip, int32_t po
         return -RT_ENOMEM;
     }
 
-	rt_mutex_take(lock, RT_WAITING_FOREVER);
+    rt_mutex_take(lock, RT_WAITING_FOREVER);
 
     /* check and close current socket */
     sim76xx_socket_close(socket);
@@ -274,7 +260,7 @@ __retry:
             LOG_D("socket(%d) connect failed, the socket was not be closed and now will connect retry.", device_socket);
             if (sim76xx_socket_close(socket) < 0)
             {
-			    result = -RT_ERROR;
+                result = -RT_ERROR;
                 goto __exit;
             }
             retryed = RT_TRUE;
@@ -373,7 +359,7 @@ static int sim76xx_socket_send(struct at_socket *socket, const char *buff, size_
         }
 
         /* send the real data to server or client */
-        result = (int) at_client_send(buff + sent_size, cur_pkt_size);
+        result = (int)at_client_obj_send(device->client, buff + sent_size, cur_pkt_size);
         if (result == 0)
         {
             result = -RT_ERROR;
@@ -532,7 +518,7 @@ static void urc_send_func(struct at_client *client, const char *data, rt_size_t 
         return;
     }
 
-    sscanf(data, "+CIPSEND: %d,%d,%d", &device_socket, &rqst_size, &cnf_size);
+    rt_sscanf(data, "+CIPSEND: %d,%d,%d", &device_socket, &rqst_size, &cnf_size);
     sim76xx_socket_event_send(device, SET_EVENT(device_socket, SIM76XX_EVENT_SEND_OK));
 }
 
@@ -551,7 +537,7 @@ static void urc_connect_func(struct at_client *client, const char *data, rt_size
         return;
     }
 
-    sscanf(data, "+CIPOPEN: %d,%d", &device_socket, &result);
+    rt_sscanf(data, "+CIPOPEN: %d,%d", &device_socket, &result);
 
     if (result == 0)
     {
@@ -580,7 +566,7 @@ static void urc_close_func(struct at_client *client, const char *data, rt_size_t
         return;
     }
 
-    sscanf(data, "+IPCLOSE %d,%d", &device_socket, &reason);
+    rt_sscanf(data, "+IPCLOSE %d,%d", &device_socket, &reason);
     /* get AT socket object by device socket descriptor */
     socket = &(device->sockets[device_socket]);
 
@@ -614,7 +600,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     device_socket = (int) sim76xx->user_data;
 
     /* get the current socket and receive buffer size by receive data */
-    sscanf(data, "+IPD%d:", (int *)&bfsz);
+    rt_sscanf(data, "+IPD%d:", (int *)&bfsz);
     /* get receive timeout by receive buffer length */
     timeout = bfsz * 10;
 
@@ -676,6 +662,9 @@ static const struct at_socket_ops sim76xx_socket_ops =
     sim76xx_socket_send,
     sim76xx_domain_resolve,
     sim76xx_socket_set_event_cb,
+#if defined(AT_SW_VERSION_NUM) && AT_SW_VERSION_NUM > 0x10300
+    RT_NULL,
+#endif
 };
 
 /* initialize sim76xx device network URC feature */

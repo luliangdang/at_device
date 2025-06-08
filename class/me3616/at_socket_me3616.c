@@ -1,21 +1,7 @@
 /*
- * File      : at_socket_me3616.c
- * This file is part of RT-Thread RTOS
- * COPYRIGHT (C) 2006 - 2018, RT-Thread Development Team
+ * Copyright (c) 2006-2023, RT-Thread Development Team
  *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along
- *  with this program; if not, write to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Change Logs:
  * Date           Author       Notes
@@ -44,12 +30,12 @@ static at_evt_cb_t at_evt_cb_set[] = {
 static int me3616_get_socket_idx(int sock)
 {
     int i;
-    
+
     if (sock < 0)
     {
         return(-1);
     }
-    
+
     for (i=0; i<AT_DEVICE_ME3616_SOCKETS_NUM; i++)
     {
         if (me3616_socket_fd[i] == sock)
@@ -80,7 +66,7 @@ static int me3616_socket_close(struct at_socket *socket)
     {
         return RT_EOK;
     }
-    
+
     resp = at_create_resp(64, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
@@ -90,7 +76,7 @@ static int me3616_socket_close(struct at_socket *socket)
 
     result = at_obj_exec_cmd(device->client, resp, "AT+ESOCL=%d", me3616_socket_fd[device_socket]);
     me3616_socket_fd[device_socket] = -1;
-    
+
     at_delete_resp(resp);
 
     return result;
@@ -114,7 +100,7 @@ static int me3616_socket_connect(struct at_socket *socket, char *ip, int32_t por
     enum at_socket_type type, rt_bool_t is_client)
 {
     #define CONN_RESP_SIZE  128
-    
+
     int type_code = 0;
     int result = RT_EOK;
     at_response_t resp = RT_NULL;
@@ -155,7 +141,7 @@ static int me3616_socket_connect(struct at_socket *socket, char *ip, int32_t por
         at_obj_exec_cmd(device->client, resp, "AT+ESOCL=%d", me3616_socket_fd[device_socket]);
         me3616_socket_fd[device_socket] = -1;
     }
-    
+
     if (at_obj_exec_cmd(device->client, resp, "AT+ESOC=1,%d,1", type_code) < 0)
     {
         result = -RT_ERROR;
@@ -176,9 +162,9 @@ static int me3616_socket_connect(struct at_socket *socket, char *ip, int32_t por
         result = -RT_ERROR;
         goto __exit;
     }
-    
+
     me3616_socket_fd[device_socket] = sock;
-    
+
 __exit:
     if (resp)
     {
@@ -260,7 +246,7 @@ static int at_wait_send_finish(struct at_socket *socket, rt_tick_t timeout)
 static int me3616_socket_send(struct at_socket *socket, const char *buff, size_t bfsz, enum at_socket_type type)
 {
     #define SEND_RESP_SIZE      128
-    
+
     int result = 0;
     size_t cur_pkt_size = 0, sent_size = 0;
     at_response_t resp = RT_NULL;
@@ -302,9 +288,9 @@ static int me3616_socket_send(struct at_socket *socket, const char *buff, size_t
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         rt_thread_mdelay(5);//delay at least 4 ms
-        
+
         /* send the real data to server or client */
         result = (int) at_client_obj_send(device->client, buff + sent_size, cur_pkt_size);
         if (result == 0)
@@ -320,7 +306,7 @@ static int me3616_socket_send(struct at_socket *socket, const char *buff, size_t
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         if (type == AT_SOCKET_TCP)
         {
             at_wait_send_finish(socket, (5*RT_TICK_PER_SECOND));
@@ -329,7 +315,7 @@ static int me3616_socket_send(struct at_socket *socket, const char *buff, size_t
         {
             rt_thread_mdelay(10);//delay at least 10 ms
         }
-        
+
         sent_size += cur_pkt_size;
     }
 
@@ -392,7 +378,7 @@ static int me3616_domain_resolve(const char *name, char ip[16])
         result = -RT_ERROR;
         goto __exit;
     }
-    
+
     ip[15] = 0;
     if (rt_strlen(ip) < 8)
     {
@@ -444,14 +430,14 @@ static void urc_close_func(struct at_client *client, const char *data, rt_size_t
         return;
     }
 
-    sscanf(data, "+ESOERR=%d,%d", &sock, &err_code);
-    
+    rt_sscanf(data, "+ESOERR=%d,%d", &sock, &err_code);
+
     device_socket = me3616_get_socket_idx(sock);
     if (device_socket < 0 || err_code < 0 || err_code > 4)
     {
         return;
     }
-    
+
     /* get at socket object by device socket descriptor */
     socket = &(device->sockets[device_socket]);
 
@@ -482,7 +468,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
         return;
     }
 
-    sscanf(data, "+ESONMI=%d,", &sock);
+    rt_sscanf(data, "+ESONMI=%d,", &sock);
     device_socket = me3616_get_socket_idx(sock);
     if (device_socket < 0)
     {
@@ -503,13 +489,13 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     {
         return;
     }
-    
-    sscanf(temp, "%d", (int *)&bfsz);
+
+    rt_sscanf(temp, "%d", (int *)&bfsz);
     if(bfsz == 0)
     {
         return;
     }
-    
+
     timeout = bfsz > 10 ? bfsz : 10;
 
     recv_buf = (char *) rt_calloc(1, bfsz);
@@ -566,6 +552,9 @@ static const struct at_socket_ops me3616_socket_ops =
     me3616_socket_send,
     me3616_domain_resolve,
     me3616_socket_set_event_cb,
+#if defined(AT_SW_VERSION_NUM) && AT_SW_VERSION_NUM > 0x10300
+    RT_NULL,
+#endif
 };
 
 int me3616_socket_init(struct at_device *device)

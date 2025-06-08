@@ -1,27 +1,13 @@
 /*
- * File      : at_socket_a9g.c
- * This file is part of RT-Thread RTOS
- * COPYRIGHT (C) 2006 - 2018, RT-Thread Development Team
+ * Copyright (c) 2006-2023, RT-Thread Development Team
  *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along
- *  with this program; if not, write to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Change Logs:
  * Date           Author       Notes
  * 2019-11-23     luliang    first version
  */
- 
+
 #include <stdio.h>
 #include <string.h>
 
@@ -85,15 +71,15 @@ static int a9g_socket_close(struct at_socket *socket)
     at_response_t resp = RT_NULL;
     int device_socket = (int) socket->user_data;
     struct at_device *device = (struct at_device *) socket->device;
-    
+
     resp = at_create_resp(64, 0, rt_tick_from_millisecond(600));
-    
+
     if (resp == RT_NULL)
     {
         LOG_E("no memory for a9g device(%s) response creat.", device->name);
         return -RT_ENOMEM;
     }
-    
+
     if (at_obj_exec_cmd(device->client, resp, "AT+CIPCLOSE=%d", device_socket) < 0)
     {
         result = -RT_ERROR;
@@ -105,7 +91,7 @@ __exit:
     {
         at_delete_resp(resp);
     }
-    
+
     return result;
 }
 
@@ -175,7 +161,7 @@ __retry:
             result = -RT_ERROR;
             goto __exit;
         }
-			}
+            }
 
     /* waiting result event from AT URC, the device default connection timeout is 75 seconds, but it set to 10 seconds is convenient to use */
     if (a9g_socket_event_recv(device, SET_EVENT(device_socket, 0), 10 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR) < 0)
@@ -185,7 +171,7 @@ __retry:
         goto __exit;
     }
     /* waiting OK or failed result */
-    event_result = a9g_socket_event_recv(device, 
+    event_result = a9g_socket_event_recv(device,
             A9G_EVENT_CONN_OK | A9G_EVENT_CONN_FAIL, 1 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR);
     if (event_result < 0)
     {
@@ -198,7 +184,7 @@ __retry:
     {
         if (retryed == RT_FALSE)
         {
-            LOG_D("a9g device(%s) socket(%d) connect failed, maybe the socket was not be closed at the last time and now will retry.", 
+            LOG_D("a9g device(%s) socket(%d) connect failed, maybe the socket was not be closed at the last time and now will retry.",
                     device->name, device_socket);
             if (a9g_socket_close(socket) < 0)
             {
@@ -218,7 +204,7 @@ __exit:
     {
         at_delete_resp(resp);
     }
-    
+
     return result;
 }
 
@@ -268,14 +254,14 @@ static int a9g_socket_send(struct at_socket *socket, const char *buff, size_t bf
         {
             cur_pkt_size = A9G_MODULE_SEND_MAX_SIZE;
         }
-		
+
         /* send the "AT+CIPSEND" commands to AT server than receive the '>' response on the first line. */
         if (at_obj_exec_cmd(device->client, resp, "AT+CIPSEND=%d,%d", device_socket, cur_pkt_size) < 0)
         {
             result = -RT_ERROR;
             goto __exit;
         }
-		
+
         /* send the real data to server or client */
         result = (int) at_client_obj_send(device->client, buff + sent_size, cur_pkt_size);
         if (result == 0)
@@ -283,8 +269,8 @@ static int a9g_socket_send(struct at_socket *socket, const char *buff, size_t bf
             result = -RT_ERROR;
             goto __exit;
         }
-		
-		/* waiting OK or failed result */
+
+        /* waiting OK or failed result */
         at_resp_set_info(resp, 128, 0, 30 * RT_TICK_PER_SECOND);
         if (at_obj_exec_cmd(device->client, resp, "") < 0)
         {
@@ -369,9 +355,9 @@ static int a9g_domain_resolve(const char *name, char ip[16])
                 goto __exit;
             }
         }
-				
+
         /* parse the third line of response data, get the IP address */
-				if (at_resp_parse_line_args_by_kw(resp, "+CDNSGIP:", "%*[^,],%*[^,],\"%[^\"]", recv_ip) < 0)
+                if (at_resp_parse_line_args_by_kw(resp, "+CDNSGIP:", "%*[^,],%*[^,],\"%[^\"]", recv_ip) < 0)
         {
             rt_thread_mdelay(100);
             /* resolve failed, maybe receive an URC CRLF */
@@ -398,7 +384,7 @@ __exit:
     {
         at_delete_resp(resp);
     }
-		
+
     return result;
 }
 
@@ -432,7 +418,7 @@ static void urc_connect_func(struct at_client *client, const char *data, rt_size
     }
 
     /* get the current socket by receive data */
-    sscanf(data, "%d,%*s", &device_socket);
+    rt_sscanf(data, "%d,%*s", &device_socket);
 
     if (strstr(data, "CONNECT OK"))
     {
@@ -460,7 +446,7 @@ static void urc_send_func(struct at_client *client, const char *data, rt_size_t 
     }
 
     /* get the current socket by receive data */
-    sscanf(data, "%d,%*s", &device_socket);
+    rt_sscanf(data, "%d,%*s", &device_socket);
 
     if (rt_strstr(data, "SEND OK"))
     {
@@ -488,7 +474,7 @@ static void urc_close_func(struct at_client *client, const char *data, rt_size_t
     }
 
     /* get the current socket by receive data */
-    sscanf(data, "%d,%*s", &device_socket);
+    rt_sscanf(data, "%d,%*s", &device_socket);
 
     if (rt_strstr(data, "CLOSE OK"))
     {
@@ -524,7 +510,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     RT_ASSERT(data && size);
 
     /* get the current socket and receive buffer size by receive data */
-    sscanf(data, "+CIPRCV,%d,%d:", &device_socket, (int *) &bfsz);
+    rt_sscanf(data, "+CIPRCV,%d,%d:", &device_socket, (int *) &bfsz);
     /* get receive timeout by receive buffer length */
     timeout = bfsz;
 
@@ -582,7 +568,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
 }
 
 /* A9G device URC table for the socket data */
-static const struct at_urc urc_table[] = 
+static const struct at_urc urc_table[] =
 {
     {"",            "CONNECT OK\r\n",      urc_connect_func},
     {"",            ",CONNECT FAIL\r\n",   urc_connect_func},
@@ -591,13 +577,16 @@ static const struct at_urc urc_table[] =
     {"+CIPRCV,",    "\r\n",                urc_recv_func},
 };
 
-static const struct at_socket_ops a9g_socket_ops = 
+static const struct at_socket_ops a9g_socket_ops =
 {
     a9g_socket_connect,
     a9g_socket_close,
     a9g_socket_send,
     a9g_domain_resolve,
     a9g_socket_set_event_cb,
+#if defined(AT_SW_VERSION_NUM) && AT_SW_VERSION_NUM > 0x10300
+    RT_NULL,
+#endif
 };
 
 int a9g_socket_init(struct at_device *device)

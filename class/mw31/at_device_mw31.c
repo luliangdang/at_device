@@ -1,21 +1,7 @@
 /*
- * File      : at_socket_mw31.c
- * This file is part of RT-Thread RTOS
- * COPYRIGHT (C) 2006 - 2018, RT-Thread Development Team
+ * Copyright (c) 2006-2023, RT-Thread Development Team
  *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along
- *  with this program; if not, write to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Change Logs:
  * Date           Author       Notes
@@ -57,14 +43,13 @@ static void mw31_get_netdev_info(struct rt_work *work, void *work_data)
     rt_uint32_t mac_addr[6] = {0};
     rt_uint32_t num = 0;
     rt_uint8_t dhcp_stat = 0;
-    struct rt_delayed_work *delay_work = (struct rt_delayed_work *)work;
     struct at_device *device = (struct at_device *)work_data;
     struct netdev *netdev = device->netdev;
     struct at_client *client = device->client;
 
-    if (delay_work)
+    if (work != RT_NULL)
     {
-        rt_free(delay_work);
+        rt_free(work);
     }
 
     resp = at_create_resp(512, 0, rt_tick_from_millisecond(300));
@@ -108,7 +93,7 @@ static void mw31_get_netdev_info(struct rt_work *work, void *work_data)
     inet_aton(mw31_ip_addr, &ip_addr);
     netdev_low_level_set_ipaddr(netdev, &ip_addr);
 
-    sscanf(mac, "%2x%2x%2x%2x%2x%2x",
+    rt_sscanf(mac, "%2x%2x%2x%2x%2x%2x",
            &mac_addr[0], &mac_addr[1], &mac_addr[2], &mac_addr[3], &mac_addr[4], &mac_addr[5]);
     for (num = 0; num < netdev->hwaddr_len; num++)
     {
@@ -390,6 +375,12 @@ static struct netdev *mw31_netdev_add(const char *netdev_name)
 
     RT_ASSERT(netdev_name);
 
+    netdev = netdev_get_by_name(netdev_name);
+    if (netdev != RT_NULL)
+    {
+        return (netdev);
+    }
+
     netdev = (struct netdev *) rt_calloc(1, sizeof(struct netdev));
     if (netdev == RT_NULL)
     {
@@ -426,15 +417,15 @@ static struct netdev *mw31_netdev_add(const char *netdev_name)
 
 static void mw31_netdev_start_delay_work(struct at_device *device)
 {
-    struct rt_delayed_work *net_work = RT_NULL;
-    net_work = (struct rt_delayed_work *)rt_calloc(1, sizeof(struct rt_delayed_work));
+    struct rt_work *net_work = RT_NULL;
+    net_work = (struct rt_work *)rt_calloc(1, sizeof(struct rt_work));
     if (net_work == RT_NULL)
     {
         return;
     }
 
-    rt_delayed_work_init(net_work, mw31_get_netdev_info, (void *)device);
-    rt_work_submit(&(net_work->work), RT_TICK_PER_SECOND);
+    rt_work_init(net_work, mw31_get_netdev_info, (void *)device);
+    rt_work_submit(net_work, RT_TICK_PER_SECOND);
 }
 
 static void mw31_init_thread_entry(void *parameter)
@@ -590,7 +581,11 @@ static int mw31_init(struct at_device *device)
     struct at_device_mw31 *mw31 = (struct at_device_mw31 *) device->user_data;
 
     /* initialize AT client */
+#if RT_VER_NUM >= 0x50100
+    at_client_init(mw31->client_name, mw31->recv_line_num, mw31->recv_line_num);
+#else
     at_client_init(mw31->client_name, mw31->recv_line_num);
+#endif
 
     device->client = at_client_get(mw31->client_name);
     if (device->client == RT_NULL)

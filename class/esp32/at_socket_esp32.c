@@ -1,21 +1,7 @@
 /*
- * File      : at_socket_esp32.c
- * This file is part of RT-Thread RTOS
- * COPYRIGHT (C) 2006 - 2018, RT-Thread Development Team
+ * Copyright (c) 2006-2023, RT-Thread Development Team
  *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along
- *  with this program; if not, write to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Change Logs:
  * Date           Author       Notes
@@ -341,7 +327,8 @@ static int esp32_domain_resolve(const char *name, char ip[16])
         }
 
         /* parse the third line of response data, get the IP address */
-        if (at_resp_parse_line_args_by_kw(resp, "+CIPDOMAIN:", "+CIPDOMAIN:%s", recv_ip) < 0)
+
+        if (at_resp_parse_line_args_by_kw(resp, "+CIPDOMAIN:", (esp32_get_at_version() <= ESP32_DEFAULT_AT_VERSION_NUM) ? "+CIPDOMAIN:%s" : "+CIPDOMAIN:\"%[^\"]\"", recv_ip) < 0)
         {
             rt_thread_mdelay(100);
             /* resolve failed, maybe receive an URC CRLF */
@@ -393,6 +380,9 @@ static const struct at_socket_ops esp32_socket_ops =
     esp32_socket_send,
     esp32_domain_resolve,
     esp32_socket_set_event_cb,
+#if defined(AT_SW_VERSION_NUM) && AT_SW_VERSION_NUM > 0x10300
+    RT_NULL,
+#endif
 };
 
 static void urc_send_func(struct at_client *client, const char *data, rt_size_t size)
@@ -429,7 +419,7 @@ static void urc_send_bfsz_func(struct at_client *client, const char *data, rt_si
 
     RT_ASSERT(data && size);
 
-    sscanf(data, "Recv %d bytes", &cur_send_bfsz);
+    rt_sscanf(data, "Recv %d bytes", &cur_send_bfsz);
 }
 
 static void urc_close_func(struct at_client *client, const char *data, rt_size_t size)
@@ -448,7 +438,7 @@ static void urc_close_func(struct at_client *client, const char *data, rt_size_t
         return;
     }
 
-    sscanf(data, "%d,CLOSED", &index);
+    rt_sscanf(data, "%d,CLOSED", &index);
     socket = &(device->sockets[index]);
 
     /* notice the socket is disconnect by remote */
@@ -478,7 +468,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     }
 
     /* get the at deveice socket and receive buffer size by receive data */
-    sscanf(data, "+IPD,%d,%d:", &device_socket, (int *) &bfsz);
+    rt_sscanf(data, "+IPD,%d,%d:", &device_socket, (int *) &bfsz);
 
     /* set receive timeout by receive buffer length, not less than 10ms */
     timeout = bfsz > 10 ? bfsz : 10;

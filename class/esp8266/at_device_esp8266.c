@@ -1,21 +1,7 @@
 /*
- * File      : at_socket_esp8266.c
- * This file is part of RT-Thread RTOS
- * COPYRIGHT (C) 2006 - 2018, RT-Thread Development Team
+ * Copyright (c) 2006-2023, RT-Thread Development Team
  *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along
- *  with this program; if not, write to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Change Logs:
  * Date           Author       Notes
@@ -37,6 +23,7 @@
 #define ESP8266_WAIT_CONNECT_TIME      5000
 #define ESP8266_THREAD_STACK_SIZE      2048
 #define ESP8266_THREAD_PRIORITY        (RT_THREAD_PRIORITY_MAX / 2)
+unsigned int ESP8266_GMR_AT_VERSION;
 
 /* =============================  esp8266 network interface operations ============================= */
 
@@ -53,19 +40,17 @@ static void esp8266_get_netdev_info(struct rt_work *work, void *work_data)
     char gateway[AT_ADDR_LEN] = {0}, netmask[AT_ADDR_LEN] = {0};
     char dns_server1[AT_ADDR_LEN] = {0}, dns_server2[AT_ADDR_LEN] = {0};
     const char *resp_expr = "%*[^\"]\"%[^\"]\"";
-    const char *resp_dns = "+CIPDNS_CUR:%s";
     ip_addr_t ip_addr;
     rt_uint32_t mac_addr[6] = {0};
     rt_uint32_t num = 0;
-    rt_uint8_t dhcp_stat = 0;
-    struct rt_delayed_work *delay_work = (struct rt_delayed_work *)work;
+    rt_uint32_t dhcp_stat = 0;
     struct at_device *device = (struct at_device *)work_data;
     struct netdev *netdev = device->netdev;
     struct at_client *client = device->client;
 
-    if (delay_work)
+    if (work != RT_NULL)
     {
-        rt_free(delay_work);
+        rt_free(work);
     }
 
     resp = at_create_resp(512, 0, rt_tick_from_millisecond(300));
@@ -109,24 +94,24 @@ static void esp8266_get_netdev_info(struct rt_work *work, void *work_data)
     netdev_low_level_set_netmask(netdev, &ip_addr);
     inet_aton(ip, &ip_addr);
     netdev_low_level_set_ipaddr(netdev, &ip_addr);
-    sscanf(mac, "%x:%x:%x:%x:%x:%x",
+    rt_sscanf(mac, "%x:%x:%x:%x:%x:%x",
             &mac_addr[0], &mac_addr[1], &mac_addr[2], &mac_addr[3], &mac_addr[4], &mac_addr[5]);
     for (num = 0; num < netdev->hwaddr_len; num++)
     {
         netdev->hwaddr[num] = mac_addr[num];
     }
 
-    /* send dns server query commond "AT+CIPDNS_CUR?" and wait response */
-    if (at_obj_exec_cmd(device->client, resp, "AT+CIPDNS_CUR?") < 0)
+    /* send dns server query commond "AT+CIPDNS?" and wait response */
+    if (at_obj_exec_cmd(device->client, resp, "AT+CIPDNS?") < 0)
     {
-        LOG_W("please check and update %s device firmware to support the \"AT+CIPDNS_CUR?\" cmd.", device->name);
+        LOG_W("please check and update %s device firmware to support the \"AT+CIPDNS?\" cmd.", device->name);
         goto __exit;
     }
 
-    if (at_resp_parse_line_args(resp, 1, resp_dns, dns_server1) <= 0 &&
-            at_resp_parse_line_args(resp, 2, resp_dns, dns_server2) <= 0)
+    /* +CIPDNS:0,"208.67.222.222","8.8.8.8" */
+    if (at_resp_parse_line_args_by_kw(resp, "+CIPDNS:", "%*[^\"]\"%[^\"]\",\"%[^\"]\"", dns_server1, dns_server2) < 0)
     {
-        LOG_E("%d device prase \"AT+CIPDNS_CUR?\" cmd error.", device->name);
+        LOG_E("%s device prase \"AT+CIPDNS?\" cmd error.", device->name);
         goto __exit;
     }
 
@@ -150,21 +135,21 @@ static void esp8266_get_netdev_info(struct rt_work *work, void *work_data)
         netdev_low_level_set_dns_server(netdev, 1, &ip_addr);
     }
 
-    /* send DHCP query commond " AT+CWDHCP_CUR?" and wait response */
-    if (at_obj_exec_cmd(client, resp, "AT+CWDHCP_CUR?") < 0)
+    /* send DHCP query commond " AT+CWDHCP" and wait response */
+    if (at_obj_exec_cmd(client, resp, "AT+CWDHCP?") < 0)
     {
         goto __exit;
     }
 
     /* parse response data, get the DHCP status */
-    if (at_resp_parse_line_args_by_kw(resp, "+CWDHCP_CUR:", "+CWDHCP_CUR:%d", &dhcp_stat) < 0)
+    if (at_resp_parse_line_args_by_kw(resp, "+CWDHCP:", "+CWDHCP:%d", &dhcp_stat) < 0)
     {
         LOG_E("%s device prase DHCP status error.", device->name);
         goto __exit;
     }
 
-    /* Bit0 - SoftAP DHCP status, Bit1 - Station DHCP status */
-    netdev_low_level_set_dhcp_status(netdev, dhcp_stat & 0x02 ? RT_TRUE : RT_FALSE);
+    /* Bit0 - Station DHCP status, Bit1 - SoftAP DHCP status */
+    netdev_low_level_set_dhcp_status(netdev, dhcp_stat & 0x01 ? RT_TRUE : RT_FALSE);
 
 __exit:
     if (resp)
@@ -263,8 +248,8 @@ static int esp8266_netdev_set_addr_info(struct netdev *netdev, ip_addr_t *ip_add
     else
         rt_memcpy(netmask_str, inet_ntoa(netdev->netmask), IPADDR_SIZE);
 
-    /* send addr info set commond "AT+CIPSTA_CUR=<ip>[,<gateway>,<netmask>]" and wait response */
-    if (at_obj_exec_cmd(device->client, resp, "AT+CIPSTA_CUR=\"%s\",\"%s\",\"%s\"",
+    /* send addr info set commond "AT+CIPSTA=<ip>[,<gateway>,<netmask>]" and wait response */
+    if (at_obj_exec_cmd(device->client, resp, "AT+CIPSTA=\"%s\",\"%s\",\"%s\"",
                         ip_str, gw_str, netmask_str) < 0)
     {
         LOG_E("%s device set address failed.", device->name);
@@ -319,8 +304,8 @@ static int esp8266_netdev_set_dns_server(struct netdev *netdev, uint8_t dns_num,
         return -RT_ENOMEM;
     }
 
-    /* send dns server set commond "AT+CIPDNS_CUR=<enable>[,<DNS	server0>,<DNS	server1>]" and wait response */
-    if (at_obj_exec_cmd(device->client, resp, "AT+CIPDNS_CUR=1,\"%s\"", inet_ntoa(*dns_server)) < 0)
+    /* send dns server set commond "AT+CIPDNS=<enable>[,<"DNS IP1">][,<"DNS IP2">][,<"DNS IP3">]" and wait response */
+    if (at_obj_exec_cmd(device->client, resp, "AT+CIPDNS=1,\"%s\"", inet_ntoa(*dns_server)) < 0)
     {
         LOG_E("%s device set DNS failed.", device->name);
         result = -RT_ERROR;
@@ -341,7 +326,8 @@ static int esp8266_netdev_set_dns_server(struct netdev *netdev, uint8_t dns_num,
 
 static int esp8266_netdev_set_dhcp(struct netdev *netdev, rt_bool_t is_enabled)
 {
-#define ESP8266_STATION     1
+#define ESP8266_STATION     1 << 0
+#define ESP8266_SOFTAP      1 << 1
 #define RESP_SIZE           128
 
     int result = RT_EOK;
@@ -364,8 +350,8 @@ static int esp8266_netdev_set_dhcp(struct netdev *netdev, rt_bool_t is_enabled)
         return -RT_ENOMEM;
     }
 
-    /* send dhcp set commond "AT+CWDHCP_CUR=<mode>,<en>" and wait response */
-    if (at_obj_exec_cmd(device->client, resp, "AT+CWDHCP_CUR=%d,%d", ESP8266_STATION, is_enabled) < 0)
+    /* send dhcp set commond "AT+CWDHCP=<operate>,<mode>" and wait response */
+    if (at_obj_exec_cmd(device->client, resp, "AT+CWDHCP=%d,%d", is_enabled, ESP8266_STATION) < 0)
     {
         LOG_E("%s device set DHCP status(%d) failed.", device->name, is_enabled);
         result = -RT_ERROR;
@@ -388,7 +374,11 @@ __exit:
 
 #ifdef NETDEV_USING_PING
 static int esp8266_netdev_ping(struct netdev *netdev, const char *host,
-                size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp)
+            size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp
+#if RT_VER_NUM >= 0x50100
+            , rt_bool_t is_bind
+#endif
+            )
 {
 #define ESP8266_PING_IP_SIZE         16
 
@@ -397,6 +387,10 @@ static int esp8266_netdev_ping(struct netdev *netdev, const char *host,
     struct at_device *device = RT_NULL;
     char ip_addr[ESP8266_PING_IP_SIZE] = {0};
     int req_time;
+
+#if RT_VER_NUM >= 0x50100
+    RT_UNUSED(is_bind);
+#endif
 
     RT_ASSERT(netdev);
     RT_ASSERT(host);
@@ -424,7 +418,7 @@ static int esp8266_netdev_ping(struct netdev *netdev, const char *host,
     }
 
     /* parse the third line of response data, get the IP address */
-    if (at_resp_parse_line_args_by_kw(resp, "+CIPDOMAIN:", "+CIPDOMAIN:%s", ip_addr) < 0)
+    if (at_resp_parse_line_args_by_kw(resp, "+CIPDOMAIN:", (esp8266_get_at_version() <= ESP8266_DEFAULT_AT_VERSION_NUM) ? "+CIPDOMAIN:%s" : "+CIPDOMAIN:\"%[^\"]\"", ip_addr) < 0)
     {
         result = -RT_ERROR;
         goto __exit;
@@ -437,7 +431,7 @@ static int esp8266_netdev_ping(struct netdev *netdev, const char *host,
         goto __exit;
     }
 
-    if (at_resp_parse_line_args_by_kw(resp, "+", "+%d", &req_time) < 0)
+    if (at_resp_parse_line_args_by_kw(resp, "+", (esp8266_get_at_version() <= ESP8266_DEFAULT_AT_VERSION_NUM) ? "+%d" : "+PING:%d", &req_time) < 0)
     {
         result = -RT_ERROR;
         goto __exit;
@@ -562,6 +556,12 @@ static struct netdev *esp8266_netdev_add(const char *netdev_name)
 
     RT_ASSERT(netdev_name);
 
+    netdev = netdev_get_by_name(netdev_name);
+    if (netdev != RT_NULL)
+    {
+        return (netdev);
+    }
+
     netdev = (struct netdev *) rt_calloc(1, sizeof(struct netdev));
     if (netdev == RT_NULL)
     {
@@ -598,15 +598,15 @@ static struct netdev *esp8266_netdev_add(const char *netdev_name)
 
 static void esp8266_netdev_start_delay_work(struct at_device *device)
 {
-    struct rt_delayed_work *net_work = RT_NULL;
-    net_work = (struct rt_delayed_work *)rt_calloc(1, sizeof(struct rt_delayed_work));
+    struct rt_work *net_work = RT_NULL;
+    net_work = (struct rt_work *)rt_calloc(1, sizeof(struct rt_work));
     if (net_work == RT_NULL)
     {
         return;
     }
 
-    rt_delayed_work_init(net_work, esp8266_get_netdev_info, (void *)device);
-    rt_work_submit(&(net_work->work), RT_TICK_PER_SECOND);
+    rt_work_init(net_work, esp8266_get_netdev_info, (void *)device);
+    rt_work_submit(net_work, RT_TICK_PER_SECOND);
 }
 
 static void esp8266_init_thread_entry(void *parameter)
@@ -648,6 +648,8 @@ static void esp8266_init_thread_entry(void *parameter)
         AT_SEND_CMD(client, resp, "AT+CWMODE=1");
         /* get module version */
         AT_SEND_CMD(client, resp, "AT+GMR");
+        /* get ESP8266 AT version*/
+        ESP8266_GMR_AT_VERSION = esp8266_at_version_to_hex(at_resp_get_line(resp, 1));
         /* show module version */
         for (i = 0; i < resp->line_counts - 1; i++)
         {
@@ -739,9 +741,9 @@ static void urc_busy_s_func(struct at_client *client, const char *data, rt_size_
 static void urc_func(struct at_client *client, const char *data, rt_size_t size)
 {
     struct at_device *device = RT_NULL;
-    char *client_name = client->device->parent.name;
 
     RT_ASSERT(client && data && size);
+    char *client_name = client->device->parent.name;
 
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_CLIENT, client_name);
     if (device == RT_NULL)
@@ -785,7 +787,11 @@ static int esp8266_init(struct at_device *device)
     struct at_device_esp8266 *esp8266 = (struct at_device_esp8266 *) device->user_data;
 
     /* initialize AT client */
+#if RT_VER_NUM >= 0x50100
+    at_client_init(esp8266->client_name, esp8266->recv_line_num, esp8266->recv_line_num);
+#else
     at_client_init(esp8266->client_name, esp8266->recv_line_num);
+#endif
 
     device->client = at_client_get(esp8266->client_name);
     if (device->client == RT_NULL)
@@ -940,4 +946,57 @@ static int esp8266_device_class_register(void)
 }
 INIT_DEVICE_EXPORT(esp8266_device_class_register);
 
+/**
+ * Convert the ESP8266 AT version string to hexadecimal
+ *
+ * @param string containing the AT version
+ *
+ * @return hex_number: Hexadecimal AT version number, example: 1.4.1.1 -> 0x1040101
+ */
+unsigned int esp8266_at_version_to_hex(const char *str)
+{
+    const char *version_prefix = "AT version:";
+    char *version_start;
+    unsigned int numbers[4];
+    unsigned int hex_number;
+
+    if (str == NULL || *str == '\0')
+    {
+        LOG_E("Invalid AT version format\n");
+        return 0;
+    }
+
+    /* Get AT version string */
+    version_start = strstr(str, version_prefix);
+    if (version_start)
+    {
+        if (rt_sscanf(version_start, "AT version:%d.%d.%d.%d", &numbers[0], &numbers[1], &numbers[2], &numbers[3]) == 4)
+        {
+
+            hex_number = (numbers[0] << 24) | (numbers[1] << 16) | (numbers[2] << 8) | numbers[3];
+        }
+        else
+        {
+            LOG_W("The AT instruction format is not standard\n");
+            return 0;
+        }
+    }
+    else
+    {
+        LOG_W("The AT+GMR instruction is not supported\n");
+        return 0;
+    }
+
+    return hex_number;
+}
+
+/**
+ * This function is used to obtain the ESP8266 AT version number.
+ *
+ * @return hex_number: Hexadecimal AT version number, example: 1.4.1.1 -> 0x1040101
+ */
+unsigned int esp8266_get_at_version(void)
+{
+    return ESP8266_GMR_AT_VERSION;
+}
 #endif /* AT_DEVICE_USING_ESP8266 */

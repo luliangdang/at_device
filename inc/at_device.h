@@ -1,21 +1,7 @@
-	/*
- * File      : at_device.h
- * This file is part of RT-Thread RTOS
- * COPYRIGHT (C) 2006 - 2018, RT-Thread Development Team
+/*
+ * Copyright (c) 2006-2023, RT-Thread Development Team
  *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along
- *  with this program; if not, write to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Change Logs:
  * Date           Author       Notes
@@ -40,8 +26,12 @@ extern "C" {
 #include <netdev.h>
 #endif /* RT_USING_NETDEV */
 
-#define AT_DEVICE_SW_VERSION           "2.0.2"
-#define AT_DEVICE_SW_VERSION_NUM       0x20002
+#if RT_VER_NUM < 0x50200
+#define rt_sscanf   sscanf
+#endif
+
+#define AT_DEVICE_SW_VERSION           "2.1.0"
+#define AT_DEVICE_SW_VERSION_NUM       0x20100
 
 /* AT device class ID */
 #define AT_DEVICE_CLASS_ESP8266        0x01U
@@ -57,6 +47,16 @@ extern "C" {
 #define AT_DEVICE_CLASS_BC26           0x0BU
 #define AT_DEVICE_CLASS_AIR720         0x0CU
 #define AT_DEVICE_CLASS_ME3616         0x0DU
+#define AT_DEVICE_CLASS_M6315          0x0EU
+#define AT_DEVICE_CLASS_BC28           0x0FU
+#define AT_DEVICE_CLASS_EC200X         0x10U
+#define AT_DEVICE_CLASS_N21            0x11U
+#define AT_DEVICE_CLASS_N58            0x12U
+#define AT_DEVICE_CLASS_M5311          0X13U
+#define AT_DEVICE_CLASS_N720           0X14U
+#define AT_DEVICE_CLASS_L610           0X15U
+#define AT_DEVICE_CLASS_ML305          0X16U
+#define AT_DEVICE_CLASS_ML307          0X17U
 
 /* Options and Commands for AT device control opreations */
 #define AT_DEVICE_CTRL_POWER_ON        0x01L

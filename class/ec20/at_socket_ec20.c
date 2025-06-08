@@ -1,21 +1,7 @@
 /*
- * File      : at_socket_ec20.c
- * This file is part of RT-Thread RTOS
- * COPYRIGHT (C) 2006 - 2018, RT-Thread Development Team
+ * Copyright (c) 2006-2023, RT-Thread Development Team
  *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along
- *  with this program; if not, write to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Change Logs:
  * Date           Author       Notes
@@ -747,7 +733,7 @@ static void urc_connect_func(struct at_client *client, const char *data, rt_size
         return;
     }
 
-    sscanf(data, "+QIOPEN: %d,%d", &device_socket , &result);
+    rt_sscanf(data, "+QIOPEN: %d,%d", &device_socket , &result);
 
     if (result == 0)
     {
@@ -804,7 +790,7 @@ static void urc_close_func(struct at_client *client, const char *data, rt_size_t
         return;
     }
 
-    sscanf(data, "+QIURC: \"closed\",%d", &device_socket);
+    rt_sscanf(data, "+QIURC: \"closed\",%d", &device_socket);
     /* get at socket object by device socket descriptor */
     socket = &(device->sockets[device_socket]);
 
@@ -835,7 +821,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     }
 
     /* get the current socket and receive buffer size by receive data */
-    sscanf(data, "+QIURC: \"recv\",%d,%d", &device_socket, (int *) &bfsz);
+    rt_sscanf(data, "+QIURC: \"recv\",%d,%d", &device_socket, (int *) &bfsz);
     /* set receive timeout by receive buffer length, not less than 10 ms */
     timeout = bfsz > 10 ? bfsz : 10;
 
@@ -888,7 +874,7 @@ static void urc_pdpdeact_func(struct at_client *client, const char *data, rt_siz
 
     RT_ASSERT(data && size);
 
-    sscanf(data, "+QIURC: \"pdpdeact\",%d", &connectID);
+    rt_sscanf(data, "+QIURC: \"pdpdeact\",%d", &connectID);
 
     LOG_E("context (%d) is deactivated.", connectID);
 }
@@ -920,7 +906,7 @@ static void urc_dnsqip_func(struct at_client *client, const char *data, rt_size_
     /* There would be several dns result, we just pickup one */
     if (j == 3)
     {
-        sscanf(data, "+QIURC: \"dnsgip\",\"%[^\"]", recv_ip);
+        rt_sscanf(data, "+QIURC: \"dnsgip\",\"%[^\"]", recv_ip);
         recv_ip[15] = '\0';
 
         /* set ec20 information socket data */
@@ -939,7 +925,7 @@ static void urc_dnsqip_func(struct at_client *client, const char *data, rt_size_
     }
     else
     {
-        sscanf(data, "+QIURC: \"dnsgip\",%d,%d,%d", &result, &ip_count, &dns_ttl);
+        rt_sscanf(data, "+QIURC: \"dnsgip\",%d,%d,%d", &result, &ip_count, &dns_ttl);
         if (result)
         {
             at_tcp_ip_errcode_parse(result);
@@ -983,6 +969,9 @@ static const struct at_socket_ops ec20_socket_ops =
     ec20_socket_send,
     ec20_domain_resolve,
     ec20_socket_set_event_cb,
+#if defined(AT_SW_VERSION_NUM) && AT_SW_VERSION_NUM > 0x10300
+    RT_NULL,
+#endif
 };
 
 int ec20_socket_init(struct at_device *device)

@@ -1,21 +1,7 @@
 /*
- * File      : at_socket_rw007.c
- * This file is part of RT-Thread RTOS
- * COPYRIGHT (C) 2006 - 2018, RT-Thread Development Team
+ * Copyright (c) 2006-2023, RT-Thread Development Team
  *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along
- *  with this program; if not, write to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Change Logs:
  * Date           Author       Notes
@@ -47,6 +33,12 @@ static struct netdev *rw007_netdev_add(const char *netdev_name)
     struct netdev *netdev = RT_NULL;
 
     RT_ASSERT(netdev_name);
+
+    netdev = netdev_get_by_name(netdev_name);
+    if (netdev != RT_NULL)
+    {
+        return (netdev);
+    }
 
     netdev = (struct netdev *)rt_calloc(1, sizeof(struct netdev));
     if (netdev == RT_NULL)
@@ -239,7 +231,11 @@ static int rw007_init(struct at_device *device)
     struct at_device_rw007 *rw007 = (struct at_device_rw007 *) device->user_data;
 
     /* initialize AT client */
+#if RT_VER_NUM >= 0x50100
+    at_client_init(rw007->client_name, rw007->recv_line_num, rw007->recv_line_num);
+#else
     at_client_init(rw007->client_name, rw007->recv_line_num);
+#endif
 
     device->client = at_client_get(rw007->client_name);
     if (device->client == RT_NULL)

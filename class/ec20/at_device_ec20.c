@@ -1,21 +1,7 @@
 /*
- * File      : at_device_ec20.c
- * This file is part of RT-Thread RTOS
- * COPYRIGHT (C) 2006 - 2018, RT-Thread Development Team
+ * Copyright (c) 2006-2023, RT-Thread Development Team
  *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along
- *  with this program; if not, write to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Change Logs:
  * Date           Author       Notes
@@ -548,7 +534,11 @@ __exit:
 
 #ifdef NETDEV_USING_PING
 static int ec20_netdev_ping(struct netdev *netdev, const char *host,
-        size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp)
+            size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp
+#if RT_VER_NUM >= 0x50100
+            , rt_bool_t is_bind
+#endif
+            )
 {
 #define EC20_PING_RESP_SIZE       128
 #define EC20_PING_IP_SIZE         16
@@ -559,6 +549,10 @@ static int ec20_netdev_ping(struct netdev *netdev, const char *host,
     char ip_addr[EC20_PING_IP_SIZE] = {0};
     at_response_t resp = RT_NULL;
     struct at_device *device = RT_NULL;
+
+#if RT_VER_NUM >= 0x50100
+    RT_UNUSED(is_bind);
+#endif
 
     RT_ASSERT(netdev);
     RT_ASSERT(host);
@@ -647,6 +641,12 @@ static struct netdev *ec20_netdev_add(const char *netdev_name)
 #define ETHERNET_MTU        1500
 #define HWADDR_LEN          8
     struct netdev *netdev = RT_NULL;
+
+    netdev = netdev_get_by_name(netdev_name);
+    if (netdev != RT_NULL)
+    {
+        return (netdev);
+    }
 
     netdev = (struct netdev *)rt_calloc(1, sizeof(struct netdev));
     if (netdev == RT_NULL)
@@ -933,7 +933,11 @@ static int ec20_init(struct at_device *device)
     struct at_device_ec20 *ec20 = (struct at_device_ec20 *) device->user_data;
 
     /* initialize AT client */
+#if RT_VER_NUM >= 0x50100
+    at_client_init(ec20->client_name, ec20->recv_line_num, ec20->recv_line_num);
+#else
     at_client_init(ec20->client_name, ec20->recv_line_num);
+#endif
 
     device->client = at_client_get(ec20->client_name);
     if (device->client == RT_NULL)

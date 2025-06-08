@@ -1,21 +1,7 @@
 /*
- * File      : at_socket_bc26.c
- * This file is part of RT-Thread RTOS
- * COPYRIGHT (C) 2006 - 2018, RT-Thread Development Team
+ * Copyright (c) 2006-2023, RT-Thread Development Team
  *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along
- *  with this program; if not, write to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Change Logs:
  * Date           Author       Notes
@@ -129,7 +115,7 @@ static int bc26_socket_close(struct at_socket *socket)
         LOG_E("no memory for resp create.");
         return -RT_ENOMEM;
     }
-    
+
     result = at_obj_exec_cmd(device->client, resp, "AT+QICLOSE=%d", device_socket);
 
     at_delete_resp(resp);
@@ -198,7 +184,7 @@ static int bc26_socket_connect(struct at_socket *socket, char *ip, int32_t port,
         event = SET_EVENT(device_socket, BC26_EVENT_CONN_OK | BC26_EVENT_CONN_FAIL);
         bc26_socket_event_recv(device, event, 0, RT_EVENT_FLAG_OR);
 
-        if (at_obj_exec_cmd(device->client, resp, "AT+QIOPEN=1,%d,\"%s\",\"%s\",%d,0,1", 
+        if (at_obj_exec_cmd(device->client, resp, "AT+QIOPEN=1,%d,\"%s\",\"%s\",%d,0,1",
                             device_socket, type_str, ip, port) < 0)
         {
             result = -RT_ERROR;
@@ -206,7 +192,7 @@ static int bc26_socket_connect(struct at_socket *socket, char *ip, int32_t port,
         }
 
         /* waiting result event from AT URC, the device default connection timeout is 60 seconds*/
-        if (bc26_socket_event_recv(device, SET_EVENT(device_socket, 0), 
+        if (bc26_socket_event_recv(device, SET_EVENT(device_socket, 0),
                                     60 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR) < 0)
         {
             LOG_E("%s device socket(%d) wait connect result timeout.", device->name, device_socket);
@@ -214,7 +200,7 @@ static int bc26_socket_connect(struct at_socket *socket, char *ip, int32_t port,
             break;
         }
         /* waiting OK or failed result */
-        event_result = bc26_socket_event_recv(device, BC26_EVENT_CONN_OK | BC26_EVENT_CONN_FAIL, 
+        event_result = bc26_socket_event_recv(device, BC26_EVENT_CONN_OK | BC26_EVENT_CONN_FAIL,
                                                 1 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR);
         if (event_result < 0)
         {
@@ -228,7 +214,7 @@ static int bc26_socket_connect(struct at_socket *socket, char *ip, int32_t port,
             result = RT_EOK;
             break;
         }
-        
+
         LOG_D("%s device socket(%d) connect failed, the socket was not be closed and now will connect retry.",
                     device->name, device_socket);
         if (bc26_socket_close(socket) < 0)
@@ -243,7 +229,7 @@ static int bc26_socket_connect(struct at_socket *socket, char *ip, int32_t port,
         LOG_E("%s device socket(%d) connect failed.", device->name, device_socket);
         result = -RT_ERROR;
     }
-    
+
     if (resp)
     {
         at_delete_resp(resp);
@@ -369,9 +355,9 @@ static int bc26_socket_send(struct at_socket *socket, const char *buff, size_t b
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         rt_thread_mdelay(5);//delay at least 4ms
-        
+
         /* send the real data to server or client */
         result = (int) at_client_obj_send(device->client, buff + sent_size, cur_pkt_size);
         if (result == 0)
@@ -468,7 +454,7 @@ static int bc26_domain_resolve(const char *name, char ip[16])
 
     /* clear BC26_EVENT_DOMAIN_OK */
     bc26_socket_event_recv(device, BC26_EVENT_DOMAIN_OK, 0, RT_EVENT_FLAG_OR);
-    
+
     bc26 = (struct at_device_bc26 *) device->user_data;
     bc26->socket_data = ip;
 
@@ -543,7 +529,7 @@ static void urc_connect_func(struct at_client *client, const char *data, rt_size
         return;
     }
 
-    sscanf(data, "+QIOPEN: %d,%d", &device_socket , &result);
+    rt_sscanf(data, "+QIOPEN: %d,%d", &device_socket , &result);
 
     if (result == 0)
     {
@@ -571,7 +557,7 @@ static void urc_send_func(struct at_client *client, const char *data, rt_size_t 
         LOG_E("get device(%s) failed.", client_name);
         return;
     }
-    
+
     bc26 = (struct at_device_bc26 *) device->user_data;
     device_socket = (int) bc26->user_data;
 
@@ -601,7 +587,7 @@ static void urc_close_func(struct at_client *client, const char *data, rt_size_t
         return;
     }
 
-    sscanf(data, "+QIURC: \"closed\",%d", &device_socket);
+    rt_sscanf(data, "+QIURC: \"closed\",%d", &device_socket);
     /* get at socket object by device socket descriptor */
     socket = &(device->sockets[device_socket]);
 
@@ -632,7 +618,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     }
 
     /* get the current socket and receive buffer size by receive data */
-    sscanf(data, "+QIURC: \"recv\",%d,%d", &device_socket, (int *) &bfsz);
+    rt_sscanf(data, "+QIURC: \"recv\",%d,%d", &device_socket, (int *) &bfsz);
     /* set receive timeout by receive buffer length, not less than 10 ms */
     timeout = bfsz > 10 ? bfsz : 10;
 
@@ -696,7 +682,7 @@ static void urc_dnsqip_func(struct at_client *client, const char *data, rt_size_
         LOG_E("get device(%s) failed.", client_name);
         return;
     }
-    
+
     bc26 = (struct at_device_bc26 *) device->user_data;
     if (bc26->socket_data == RT_NULL)
     {
@@ -712,7 +698,7 @@ static void urc_dnsqip_func(struct at_client *client, const char *data, rt_size_
     /* There would be several dns result, we just pickup one */
     if (j == 3)
     {
-        sscanf(data, "+QIURC: \"dnsgip\",\"%[^\"]", recv_ip);
+        rt_sscanf(data, "+QIURC: \"dnsgip\",\"%[^\"]", recv_ip);
         recv_ip[15] = '\0';
 
         rt_memcpy(bc26->socket_data, recv_ip, sizeof(recv_ip));
@@ -721,7 +707,7 @@ static void urc_dnsqip_func(struct at_client *client, const char *data, rt_size_
     }
     else
     {
-        sscanf(data, "+QIURC: \"dnsgip\",%d,%d,%d", &result, &ip_count, &dns_ttl);
+        rt_sscanf(data, "+QIURC: \"dnsgip\",%d,%d,%d", &result, &ip_count, &dns_ttl);
         if (result)
         {
             at_tcp_ip_errcode_parse(result);
@@ -764,6 +750,9 @@ static const struct at_socket_ops bc26_socket_ops =
     bc26_socket_send,
     bc26_domain_resolve,
     bc26_socket_set_event_cb,
+#if defined(AT_SW_VERSION_NUM) && AT_SW_VERSION_NUM > 0x10300
+    RT_NULL,
+#endif
 };
 
 int bc26_socket_init(struct at_device *device)

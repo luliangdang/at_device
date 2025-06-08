@@ -1,26 +1,13 @@
 /*
- * File      : at_socket_sim800c.c
- * This file is part of RT-Thread RTOS
- * COPYRIGHT (C) 2006 - 2018, RT-Thread Development Team
+ * Copyright (c) 2006-2023, RT-Thread Development Team
  *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along
- *  with this program; if not, write to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Change Logs:
  * Date           Author       Notes
  * 2018-06-12     malongwei    first version
  * 2019-05-13     chenyong     multi AT socket client support
+ * 2020-07-24     awenchen     fix the stack overflow when parse cops
  */
 
 #include <stdio.h>
@@ -452,7 +439,11 @@ __exit:
 
 #ifdef NETDEV_USING_PING
 static int sim800c_netdev_ping(struct netdev *netdev, const char *host,
-        size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp)
+            size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp
+#if RT_VER_NUM >= 0x50100
+            , rt_bool_t is_bind
+#endif
+            )
 {
 #define SIM800C_PING_RESP_SIZE         128
 #define SIM800C_PING_IP_SIZE           16
@@ -466,6 +457,10 @@ static int sim800c_netdev_ping(struct netdev *netdev, const char *host,
     char ip_addr[SIM800C_PING_IP_SIZE] = {0};
     at_response_t resp = RT_NULL;
     struct at_device *device = RT_NULL;
+
+#if RT_VER_NUM >= 0x50100
+    RT_UNUSED(is_bind);
+#endif
 
     RT_ASSERT(netdev);
     RT_ASSERT(host);
@@ -569,6 +564,12 @@ static struct netdev *sim800c_netdev_add(const char *netdev_name)
 
     RT_ASSERT(netdev_name);
 
+    netdev = netdev_get_by_name(netdev_name);
+    if (netdev != RT_NULL)
+    {
+        return (netdev);
+    }
+
     netdev = (struct netdev *) rt_calloc(1, sizeof(struct netdev));
     if (netdev == RT_NULL)
     {
@@ -612,7 +613,7 @@ static void sim800c_init_thread_entry(void *parameter)
 #define CGREG_RETRY                    20
 
     int i, qimux, retry_num = INIT_RETRY;
-    char parsed_data[10] = {0};
+    char parsed_data[32] = {0};
     rt_err_t result = RT_EOK;
     at_response_t resp = RT_NULL;
     struct at_device *device = (struct at_device *)parameter;
@@ -760,6 +761,11 @@ static void sim800c_init_thread_entry(void *parameter)
             /* "CT" */
             LOG_I("%s device network operator: %s", device->name, parsed_data);
         }
+        else
+        {
+            AT_SEND_CMD(client, resp, 0, 300, "AT+CSTT");
+            LOG_I("%s device network operator: %s", device->name, parsed_data);
+        }
 
         /* the device default response timeout is 150 seconds, but it set to 20 seconds is convenient to use. */
         AT_SEND_CMD(client, resp, 0, 20 * 1000, "AT+CIICR");
@@ -852,7 +858,11 @@ static int sim800c_init(struct at_device *device)
     struct at_device_sim800c *sim800c = (struct at_device_sim800c *) device->user_data;
 
     /* initialize AT client */
+#if RT_VER_NUM >= 0x50100
+    at_client_init(sim800c->client_name, sim800c->recv_line_num, sim800c->recv_line_num);
+#else
     at_client_init(sim800c->client_name, sim800c->recv_line_num);
+#endif
 
     device->client = at_client_get(sim800c->client_name);
     if (device->client == RT_NULL)

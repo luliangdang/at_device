@@ -1,21 +1,7 @@
 /*
- * File      : at_device_me3616.c
- * This file is part of RT-Thread RTOS
- * COPYRIGHT (C) 2006 - 2018, RT-Thread Development Team
+ * Copyright (c) 2006-2023, RT-Thread Development Team
  *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along
- *  with this program; if not, write to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Change Logs:
  * Date           Author       Notes
@@ -43,7 +29,7 @@
 static int me3616_power_on(struct at_device *device)
 {
     struct at_device_me3616 *me3616 = RT_NULL;
-    
+
     me3616 = (struct at_device_me3616 *)device->user_data;
     me3616->power_status = RT_TRUE;
 
@@ -52,11 +38,11 @@ static int me3616_power_on(struct at_device *device)
     {
         return(RT_EOK);
     }
-    
+
     rt_pin_write(me3616->power_pin, PIN_HIGH);
     rt_thread_mdelay(500);
     rt_pin_write(me3616->power_pin, PIN_LOW);
-    
+
     LOG_D("power on success.");
 
     return(RT_EOK);
@@ -66,7 +52,7 @@ static int me3616_power_off(struct at_device *device)
 {
     at_response_t resp = RT_NULL;
     struct at_device_me3616 *me3616 = RT_NULL;
-    
+
     resp = at_create_resp(64, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
@@ -81,14 +67,14 @@ static int me3616_power_off(struct at_device *device)
         at_delete_resp(resp);
         return(-RT_ERROR);
     }*/
-    
+
     at_delete_resp(resp);
-    
+
     me3616 = (struct at_device_me3616 *)device->user_data;
     me3616->power_status = RT_FALSE;
-    
+
     LOG_D("power off success.");
-    
+
     return(RT_EOK);
 }
 
@@ -96,24 +82,24 @@ static int me3616_sleep(struct at_device *device)
 {
     at_response_t resp = RT_NULL;
     struct at_device_me3616 *me3616 = RT_NULL;
-    
+
     me3616 = (struct at_device_me3616 *)device->user_data;
     if ( ! me3616->power_status)//power off
     {
         return(RT_EOK);
     }
-    if (me3616->sleep_status)//is sleep status 
+    if (me3616->sleep_status)//is sleep status
     {
         return(RT_EOK);
     }
-    
+
     resp = at_create_resp(64, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
         LOG_E("no memory for resp create.");
         return(-RT_ERROR);
     }
-    
+
     if (at_obj_exec_cmd(device->client, resp, "AT+CPSMS=1,,,\"00111110\",\"00000001\"") != RT_EOK)
     {
         LOG_D("enable sleep fail.");
@@ -129,12 +115,12 @@ static int me3616_sleep(struct at_device *device)
         return(-RT_ERROR);
     }
     #endif
-    
+
     at_delete_resp(resp);
     me3616->sleep_status = RT_TRUE;
-    
+
     LOG_D("sleep success.");
-    
+
     return(RT_EOK);
 }
 
@@ -153,14 +139,14 @@ static int me3616_wakeup(struct at_device *device)
     {
         return(RT_EOK);
     }
-    
+
     resp = at_create_resp(64, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
         LOG_E("no memory for resp create.");
         return(-RT_ERROR);
     }
-    
+
     #if ME3616_DEEP_SLEEP_EN
     if (me3616->power_pin != -1)
     {
@@ -170,19 +156,19 @@ static int me3616_wakeup(struct at_device *device)
         rt_thread_mdelay(200);
     }
     #endif
-    
+
     if (at_obj_exec_cmd(device->client, resp, "AT+CPSMS=0") != RT_EOK)
     {
         LOG_D("wake up fail.");
         at_delete_resp(resp);
         return(-RT_ERROR);
     }
-    
+
     at_delete_resp(resp);
     me3616->sleep_status = RT_FALSE;
-    
+
     LOG_D("wake up success.");
-    
+
     return(RT_EOK);
 }
 
@@ -200,7 +186,7 @@ static int me3616_check_link_status(struct at_device *device)
         LOG_D("the power is off.");
         return(-RT_ERROR);
     }
-    
+
     #if ME3616_DEEP_SLEEP_EN
     if (me3616->sleep_status)//is sleep status
     {
@@ -213,7 +199,7 @@ static int me3616_check_link_status(struct at_device *device)
         }
     }
     #endif
-    
+
     resp = at_create_resp(64, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
@@ -233,7 +219,7 @@ static int me3616_check_link_status(struct at_device *device)
             }
         }
     }
-    
+
     #if ME3616_DEEP_SLEEP_EN
     if (me3616->sleep_status)//is sleep status
     {
@@ -243,9 +229,9 @@ static int me3616_check_link_status(struct at_device *device)
         }
     }
     #endif
-    
+
     at_delete_resp(resp);
-    
+
     return(result);
 }
 
@@ -298,14 +284,14 @@ static int me3616_netdev_set_info(struct netdev *netdev)
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         if (at_resp_parse_line_args(resp, 2, "%s", imei) <= 0)
         {
             LOG_E("%s device prase \"AT+GSN\" cmd error.", device->name);
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         LOG_D("%s device IMEI number: %s", device->name, imei);
 
         netdev->hwaddr_len = ME3616_NETDEV_HWADDR_LEN;
@@ -327,7 +313,7 @@ static int me3616_netdev_set_info(struct netdev *netdev)
     {
         #define IP_ADDR_SIZE_MAX    16
         char ipaddr[IP_ADDR_SIZE_MAX] = {0};
-        
+
         /* send "AT+CGPADDR=1" commond to get IP address */
         if (at_obj_exec_cmd(device->client, resp, "AT+CGPADDR=1") != RT_EOK)
         {
@@ -336,7 +322,7 @@ static int me3616_netdev_set_info(struct netdev *netdev)
         }
 
         /* parse response data "+CGPADDR: 1,<IP_address>" */
-        if (at_resp_parse_line_args_by_kw(resp, "+CGPADDR:", "+CGPADDR: %*d,\"%s\"", ipaddr) <= 0)
+        if (at_resp_parse_line_args_by_kw(resp, "+CGPADDR:", "+CGPADDR: %*[^\"]\"%[^\"]", ipaddr) <= 0)
         {
             LOG_E("%s device \"AT+CGPADDR=1\" cmd error.", device->name);
             result = -RT_ERROR;
@@ -349,7 +335,7 @@ static int me3616_netdev_set_info(struct netdev *netdev)
         inet_aton(ipaddr, &addr);
         netdev_low_level_set_ipaddr(netdev, &addr);
     }
-    
+
 __exit:
     if (resp)
     {
@@ -373,7 +359,7 @@ static void me3616_check_link_status_entry(void *parameter)
         LOG_E("get device(%s) failed.", netdev->name);
         return;
     }
-    
+
     while (1)
     {
         is_link_up = (me3616_check_link_status(device) == RT_EOK);
@@ -458,7 +444,11 @@ static int me3616_netdev_set_down(struct netdev *netdev)
 
 #ifdef NETDEV_USING_PING
 static int me3616_netdev_ping(struct netdev *netdev, const char *host,
-        size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp)
+            size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp
+#if RT_VER_NUM >= 0x50100
+            , rt_bool_t is_bind
+#endif
+            )
 {
 #define ME3616_PING_RESP_SIZE       256
 #define ME3616_PING_IP_SIZE         16
@@ -473,6 +463,10 @@ static int me3616_netdev_ping(struct netdev *netdev, const char *host,
     RT_ASSERT(netdev);
     RT_ASSERT(host);
     RT_ASSERT(ping_resp);
+
+#if RT_VER_NUM >= 0x50100
+    RT_UNUSED(is_bind);
+#endif
 
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
@@ -509,7 +503,7 @@ static int me3616_netdev_ping(struct netdev *netdev, const char *host,
         goto __exit;
     }
 
-    if (at_resp_parse_line_args_by_kw(resp, "received=", "%*[^=]=%d%*[^=]=%d%*[^=]=%d", 
+    if (at_resp_parse_line_args_by_kw(resp, "received=", "%*[^=]=%d%*[^=]=%d%*[^=]=%d",
                                         &recv_data_len, &ping_time, &ttl) <= 0)
     {
         result = -RT_ERROR;
@@ -552,6 +546,12 @@ static struct netdev *me3616_netdev_add(const char *netdev_name)
 #define ETHERNET_MTU        1500
 #define HWADDR_LEN          8
     struct netdev *netdev = RT_NULL;
+
+    netdev = netdev_get_by_name(netdev_name);
+    if(netdev != RT_NULL)
+    {
+        return(netdev);
+    }
 
     netdev = (struct netdev *)rt_calloc(1, sizeof(struct netdev));
     if (netdev == RT_NULL)
@@ -614,14 +614,14 @@ static void me3616_init_thread_entry(void *parameter)
             result = -RT_ETIMEOUT;
             goto __exit;
         }
-        
+
         /* disable echo */
         if (at_obj_exec_cmd(device->client, resp, "ATE0") != RT_EOK)
         {
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         /* disable PSM mode  */
         if (at_obj_exec_cmd(device->client, resp, "AT+CPSMS=0") != RT_EOK)
         {
@@ -641,24 +641,24 @@ static void me3616_init_thread_entry(void *parameter)
         {
             result = -RT_ERROR;
             goto __exit;
-        }  
-        
+        }
+
         /* disable sleep function  */
         if (at_obj_exec_cmd(device->client, resp, "AT+ZSLR=0") != RT_EOK)
         {
             result = -RT_ERROR;
             goto __exit;
-        } 
-        
+        }
+
         /* Get the baudrate */
         if (at_obj_exec_cmd(device->client, resp, "AT+IPR?") != RT_EOK)
         {
             result = -RT_ERROR;
             goto __exit;
         }
-        at_resp_parse_line_args_by_kw(resp, "+IPR:", "+IPR: %d", &i);
+        at_resp_parse_line_args_by_kw(resp, "+IPR:", "+IPR: %d\r", &i);
         LOG_D("%s device baudrate %d", device->name, i);
-        
+
         /* get module version */
         if (at_obj_exec_cmd(device->client, resp, "ATI") != RT_EOK)
         {
@@ -668,8 +668,8 @@ static void me3616_init_thread_entry(void *parameter)
         for (i = 0; i < (int) resp->line_counts - 1; i++)
         {
             LOG_D("%s", at_resp_get_line(resp, i + 1));
-        }   
-        
+        }
+
         /* check SIM card */
         for (i = 0; i < CPIN_RETRY; i++)
         {
@@ -694,7 +694,7 @@ static void me3616_init_thread_entry(void *parameter)
             if (at_obj_exec_cmd(device->client, resp, "AT+CSQ") == RT_EOK)
             {
                 int signal_strength = 0, err_rate = 0;
-                
+
                 if (at_resp_parse_line_args_by_kw(resp, "+CSQ:", "+CSQ: %d,%d", &signal_strength, &err_rate) > 0)
                 {
                     if ((signal_strength != 99) && (signal_strength != 0))
@@ -712,7 +712,7 @@ static void me3616_init_thread_entry(void *parameter)
             result = -RT_ERROR;
             goto __exit;
         }
-                
+
         /* check the GPRS network is registered */
         for (i = 0; i < CGREG_RETRY; i++)
         {
@@ -720,7 +720,7 @@ static void me3616_init_thread_entry(void *parameter)
             if (at_obj_exec_cmd(device->client, resp, "AT+CGREG?") == RT_EOK)
             {
                 int link_stat = 0;
-                
+
                 if (at_resp_parse_line_args_by_kw(resp, "+CGREG:", "+CGREG: %*d,%d", &link_stat) > 0)
                 {
                     if ((link_stat == 1) || (link_stat == 5))
@@ -737,7 +737,7 @@ static void me3616_init_thread_entry(void *parameter)
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         /* check the GPRS network IP address */
         for (i = 0; i < IPADDR_RETRY; i++)
         {
@@ -746,9 +746,9 @@ static void me3616_init_thread_entry(void *parameter)
             {
                 #define IP_ADDR_SIZE_MAX    16
                 char ipaddr[IP_ADDR_SIZE_MAX] = {0};
-                
+
                 /* parse response data "+CGPADDR: 1,<IP_address>" */
-                if (at_resp_parse_line_args_by_kw(resp, "+CGPADDR:", "+CGPADDR: %*d,%s", ipaddr) > 0)
+                if (at_resp_parse_line_args_by_kw(resp, "+CGPADDR:", "+CGPADDR: %*[^\"]\"%[^\"]", ipaddr) > 0)
                 {
                     LOG_D("%s device IP address: %s", device->name, ipaddr);
                     break;
@@ -761,7 +761,7 @@ static void me3616_init_thread_entry(void *parameter)
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         /* initialize successfully  */
         result = RT_EOK;
         break;
@@ -835,7 +835,11 @@ static int me3616_init(struct at_device *device)
     me3616->sleep_status = RT_FALSE;//default sleep is disabled.
 
     /* initialize AT client */
+#if RT_VER_NUM >= 0x50100
+    at_client_init(me3616->client_name, me3616->recv_line_num, me3616->recv_line_num);
+#else
     at_client_init(me3616->client_name, me3616->recv_line_num);
+#endif
 
     device->client = at_client_get(me3616->client_name);
     if (device->client == RT_NULL)
@@ -871,7 +875,7 @@ static int me3616_init(struct at_device *device)
 static int me3616_deinit(struct at_device *device)
 {
     RT_ASSERT(device);
-    
+
     return me3616_netdev_set_down(device->netdev);
 }
 

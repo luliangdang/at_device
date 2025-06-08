@@ -1,21 +1,7 @@
 /*
- * File      : at_socket_sim76xx.c
- * This file is part of RT-Thread RTOS
- * COPYRIGHT (C) 2006 - 2018, RT-Thread Development Team
+ * Copyright (c) 2006-2023, RT-Thread Development Team
  *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along
- *  with this program; if not, write to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Change Logs:
  * Date           Author       Notes
@@ -342,7 +328,11 @@ static int sim76xx_netdev_set_down(struct netdev *netdev)
 #ifdef NETDEV_USING_PING
 /* sim76xx network interface device ping feature */
 static int sim76xx_netdev_ping(struct netdev *netdev, const char *host,
-        size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp)
+            size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp
+#if RT_VER_NUM >= 0x50100
+            , rt_bool_t is_bind
+#endif
+            )
 {
 #define SIM76XX_PING_RESP_SIZE         128
 #define SIM76XX_PING_IP_SIZE           16
@@ -353,6 +343,10 @@ static int sim76xx_netdev_ping(struct netdev *netdev, const char *host,
     char ip_addr[SIM76XX_PING_IP_SIZE] = {0};
     at_response_t resp = RT_NULL;
     struct at_device *device = RT_NULL;
+
+#if RT_VER_NUM >= 0x50100
+    RT_UNUSED(is_bind);
+#endif
 
     RT_ASSERT(netdev);
     RT_ASSERT(host);
@@ -435,6 +429,12 @@ static struct netdev *sim76xx_netdev_add(const char *netdev_name)
     struct netdev *netdev = RT_NULL;
 
     RT_ASSERT(netdev_name);
+
+    netdev = netdev_get_by_name(netdev_name);
+    if (netdev != RT_NULL)
+    {
+        return (netdev);
+    }
 
     netdev = (struct netdev *)rt_calloc(1, sizeof(struct netdev));
     if (netdev == RT_NULL)
@@ -529,7 +529,7 @@ static void sim76xx_init_thread_entry(void *parameter)
             at_obj_exec_cmd(client, resp, "AT+CPIN?");
             if (at_resp_get_line_by_kw(resp, "READY"))
             {
-                LOG_D("%s device SIM card detection failed.", device->name);
+                LOG_D("%s device SIM card detection success.", device->name);
                 break;
             }
             LOG_I("\"AT+CPIN\" commands send retry...");
@@ -752,7 +752,11 @@ static int sim76xx_init(struct at_device *device)
     struct at_device_sim76xx *sim76xx = (struct at_device_sim76xx *) device->user_data;
 
     /* initialize AT client */
+#if RT_VER_NUM >= 0x50100
+    at_client_init(sim76xx->client_name, sim76xx->recv_line_num, sim76xx->recv_line_num);
+#else
     at_client_init(sim76xx->client_name, sim76xx->recv_line_num);
+#endif
 
     device->client = at_client_get(sim76xx->client_name);
     if (device->client == RT_NULL)
